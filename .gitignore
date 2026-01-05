@@ -1,0 +1,36 @@
+# Ignore all data files and artifacts to keep the repository lightweight
+data/
+artifacts/
+
+# Python virtual environments and caches
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+
+# Logs and intermediate files
+*.log
+*.tmp
+*.bak
+
+# Binary and large data formats
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.zarr
+*.npz
+
+# Secrets and environment configuration
+.env
+*.key
+*.pem
+credentials*.json
+
+# OS & editor specific
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Pre‑commit working directory
+.mypy_cache/

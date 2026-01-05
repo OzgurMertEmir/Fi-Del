@@ -1,0 +1,11 @@
+# Core dependencies for the crypto order book project
+python-dotenv>=1.0
+pydrive2>=1.9
+tqdm>=4.65
+pandas>=2.0
+numpy>=1.23
+
+# Developer tools (optional)
+pre-commit>=3.5
+ruff>=0.1.5
+gitleaks>=8.24
