@@ -59,12 +59,3 @@ def get_drive_folder_id() -> Optional[str]:
         The folder ID or `None` if not set.
     """
     return get_env("DRIVE_FOLDER_ID")
-
-
-def get_log_parser_path() -> Optional[Path]:
-    """Return the path to the log parser script, if set.
-
-    The value is expanded to handle `~` and relative paths.
-    """
-    path = get_env("LOG_PARSER_PATH")
-    return Path(os.path.expanduser(path)).resolve() if path else None

@@ -1,15 +1,19 @@
 #!/usr/bin/env python
+# ruff: noqa: E402
 """
 process_logs.py
 
-Convert raw log files into clean machine‑learning ready datasets using your
-existing log parser.  The parser script path is read from the `LOG_PARSER_PATH`
-environment variable (see `.env.example`).
+Convert raw log files into clean machine‑learning ready datasets using the
+project's built‑in log parser.
 
-For each file in `data/raw/`, this script invokes the parser and writes the
-output into `data/processed/` with the same base name and a `.csv` extension
-(you can adjust the extension in the code).  Files that already exist in the
-output directory are skipped unless `--force` is specified.
+For each file in `data/raw/`, this script parses the file and writes two CSVs
+into `data/processed/`:
+
+- `strategy_updates/<file_stem>.csv`
+- `trade_fills/<file_stem>.csv`
+
+Files that already exist in the output directory are skipped unless `--force`
+is specified.
 
 Example:
 
@@ -27,25 +31,17 @@ Adjust the `run_parser()` function if the interface differs.
 """
 
 import argparse
-import os
-import subprocess
+import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = PROJECT_ROOT / "src"
+# Allow running the script without installing the package
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
-
-def run_parser(parser_path: str, input_path: Path, output_path: Path) -> None:
-    """Execute the external log parser.
-
-    Modify this function if your parser accepts different arguments or if you
-    want to import a Python function instead of invoking a subprocess.
-    """
-    cmd = ["python", parser_path, "--input", str(input_path), "--output", str(output_path)]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"Error parsing {input_path}: {result.stderr}")
-    else:
-        print(f"Processed {input_path.name} -> {output_path.name}")
+from myproj.config import PROCESSED_DATA_DIR, RAW_DATA_DIR  # noqa: E402
+from myproj.data import parse_log_file  # noqa: E402
 
 
 def main():
@@ -53,23 +49,16 @@ def main():
     parser.add_argument(
         "--force", action="store_true", help="Reprocess files even if outputs already exist"
     )
+    parser.add_argument("--ext", default=".log", help="Extension of raw log files to look for (default: .log)")
     parser.add_argument(
-        "--ext", default=".log", help="Extension of raw log files to look for (default: .log)"
-    )
-    parser.add_argument(
-        "--output-ext", default=".csv", help="Extension for processed files (default: .csv)"
+        "--output-dir",
+        default=None,
+        help="Directory to write processed CSVs (default: DATA_ROOT/processed)",
     )
     args = parser.parse_args()
 
-    load_dotenv()
-    data_root = os.environ.get("DATA_ROOT", "./data")
-    parser_path = os.environ.get("LOG_PARSER_PATH")
-    if not parser_path:
-        raise RuntimeError("LOG_PARSER_PATH environment variable must be set to your log parser script")
-    parser_path = os.path.expanduser(parser_path)
-
-    raw_dir = Path(data_root) / "raw"
-    out_dir = Path(data_root) / "processed"
+    raw_dir = RAW_DATA_DIR
+    out_dir = Path(args.output_dir).resolve() if args.output_dir else PROCESSED_DATA_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
     raw_files = sorted(f for f in raw_dir.glob(f"*{args.ext}") if f.is_file())
@@ -78,11 +67,16 @@ def main():
         return
 
     for raw_file in raw_files:
-        output_file = out_dir / (raw_file.stem + args.output_ext)
-        if output_file.exists() and not args.force:
-            print(f"Skipping {output_file.name} (already exists, use --force to overwrite)")
+        base_name = raw_file.stem
+        strategy_path = out_dir / "strategy_updates" / f"{base_name}.csv"
+        fills_path = out_dir / "trade_fills" / f"{base_name}.csv"
+
+        if strategy_path.exists() and fills_path.exists() and not args.force:
+            print(f"Skipping {base_name} (already parsed, use --force to overwrite)")
             continue
-        run_parser(parser_path, raw_file, output_file)
+
+        strategy_out, fills_out = parse_log_file(raw_file, output_dir=out_dir, base_name=base_name)
+        print(f"Processed {raw_file.name} -> {strategy_out.name}, {fills_out.name}")
 
 
 if __name__ == "__main__":

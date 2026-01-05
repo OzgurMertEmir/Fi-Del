@@ -32,6 +32,8 @@ policies and Drive configuration you may need to adjust the authentication
 logic.  See the README for more details.
 """
 
+from __future__ import annotations
+
 import argparse
 import os
 import re

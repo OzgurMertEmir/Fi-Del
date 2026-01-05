@@ -22,6 +22,7 @@ __pycache__/
 
 # Secrets and environment configuration
 .env
+.env.example
 *.key
 *.pem
 credentials*.json
