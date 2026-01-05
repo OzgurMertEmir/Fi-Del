@@ -1,6 +1,8 @@
 # Ignore all data files and artifacts to keep the repository lightweight
 data/
 artifacts/
+reports/eda/
+analysis/csv_preview/
 
 # Python virtual environments and caches
 .venv/

@@ -1,0 +1,55 @@
+dataset:
+  symbol: BTCUSDT
+  raw_path: data/raw/BTCUSDT.store
+  out_dir: data/processed/BTCUSDT_v1
+  file_format: parquet
+
+ingest:
+  has_header: false
+  delimiter: ","
+  columns: [rec_type, ts_ms, bid_px, bid_qty, ask_px, ask_qty, vol_base]
+  dtypes:
+    rec_type: int64
+    ts_ms: int64
+    bid_px: float64
+    bid_qty: float64
+    ask_px: float64
+    ask_qty: float64
+    vol_base: float64
+
+cleaning:
+  enforce_monotonic_ts: true
+  expected_dt_ms: 1000
+  handle_bad_dt: segment    # segment | drop | reindex_fill
+  min_segment_len: 600
+  enforce_bid_leq_ask: true
+  drop_nonpositive: true
+
+features:
+  rolling_windows: [5, 15, 60, 300]
+  add_time_features: true
+  eps: 1.0e-12
+
+labels:
+  horizons_s: [5, 30, 60]
+  direction_deadzone: half_spread   # half_spread | fixed_bps
+  fixed_bps: 1.0
+
+split:
+  method: time_ratio
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  embargo_s: 60
+
+normalize:
+  enabled: true
+  method: standard    # standard | robust | none
+  fit_on: train
+  save_params: true
+
+output:
+  save_feature_list: true
+  save_label_list: true
+  save_summary_stats: true
+  save_config_snapshot: true
