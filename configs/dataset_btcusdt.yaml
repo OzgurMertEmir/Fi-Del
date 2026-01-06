@@ -7,6 +7,7 @@ dataset:
 ingest:
   has_header: false
   delimiter: ","
+  skip_rows: 1
   columns: [rec_type, ts_ms, bid_px, bid_qty, ask_px, ask_qty, vol_base]
   dtypes:
     rec_type: int64

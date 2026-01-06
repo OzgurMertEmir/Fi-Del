@@ -23,6 +23,7 @@ class IngestConfig:
     delimiter: str
     columns: List[str]
     dtypes: Dict[str, Any]
+    skip_rows: int = 0
 
 
 @dataclass
@@ -99,6 +100,7 @@ def _dict_to_dataclass(cfg: Dict[str, Any]) -> Config:
         delimiter=cfg["ingest"]["delimiter"],
         columns=list(cfg["ingest"]["columns"]),
         dtypes=dict(cfg["ingest"]["dtypes"]),
+        skip_rows=int(cfg["ingest"].get("skip_rows", 0)),
     )
     cleaning = CleaningConfig(**cfg["cleaning"])
     features = FeaturesConfig(**cfg["features"])

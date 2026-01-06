@@ -3,6 +3,7 @@ data/
 artifacts/
 reports/eda/
 analysis/csv_preview/
+analysis/raw_plots/
 
 # Python virtual environments and caches
 .venv/

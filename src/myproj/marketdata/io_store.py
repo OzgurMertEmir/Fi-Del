@@ -15,6 +15,7 @@ def read_store(
     dtypes: Dict[str, str],
     has_header: bool = False,
     delimiter: str = ",",
+    skip_rows: int = 0,
 ) -> pd.DataFrame:
     """Read a .store file with known schema."""
     path = Path(path)
@@ -25,6 +26,7 @@ def read_store(
         dtype=dtypes,
         delimiter=delimiter,
         engine="c",
+        skiprows=skip_rows,
     )
     df = df.dropna()
     df = df.sort_values("ts_ms").reset_index(drop=True)

@@ -39,7 +39,14 @@ def get_label_columns(label_cfg) -> List[str]:
 
 def build_dataset(cfg: Config) -> Dict[str, Path]:
     paths: Dict[str, Path] = {}
-    raw_df = read_store(cfg.dataset.raw_path, cfg.ingest.columns, cfg.ingest.dtypes, cfg.ingest.has_header, cfg.ingest.delimiter)
+    raw_df = read_store(
+        cfg.dataset.raw_path,
+        cfg.ingest.columns,
+        cfg.ingest.dtypes,
+        cfg.ingest.has_header,
+        cfg.ingest.delimiter,
+        cfg.ingest.skip_rows,
+    )
     raw_df, val_report = validate_raw(raw_df, cfg.cleaning)
 
     df = add_segment_id(raw_df, cfg.cleaning.expected_dt_ms, cfg.cleaning.handle_bad_dt)

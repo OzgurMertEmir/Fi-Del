@@ -4,17 +4,23 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from .config import EDAConfig, ensure_dir
 from .io import load_table
 from .plots import generate_plots
 from .quality import compare_splits, quality_report
-from .report import profiling_report, write_index, write_summary
+from .report import build_dashboard, profiling_report, write_summary
 from .targets import target_report
 
 
-def run(train_path: Path, val_path: Path, test_path: Path, out_dir: Path) -> None:
+def run(
+    train_path: Path,
+    val_path: Path,
+    test_path: Path,
+    out_dir: Path,
+    raw_plots_dir: Optional[Path] = None,
+) -> None:
     cfg = EDAConfig()
     out_dir = ensure_dir(out_dir)
 
@@ -51,14 +57,16 @@ def run(train_path: Path, val_path: Path, test_path: Path, out_dir: Path) -> Non
         "quality": {"train": q_train, "val": q_val, "test": q_test, "compare": split_cmp},
         "targets": {"train": t_train, "val": t_val, "test": t_test},
     }
-    write_summary(summary, out_dir / "summary.json")
+    summary_path = out_dir / "summary.json"
+    write_summary(summary, summary_path)
 
-    index_entries = (
-        [{"href": "summary.json", "label": "summary.json"}]
-        + plot_entries
-        + prof_entries
-    )
-    write_index(out_dir, index_entries)
+    # Optional raw plots section (e.g., from analysis/raw_plots)
+    raw_plot_entries: List[Dict[str, str]] = []
+    if raw_plots_dir:
+        for p in sorted(Path(raw_plots_dir).glob("*.html")):
+            raw_plot_entries.append({"href": Path(p).resolve().as_posix(), "label": p.name})
+
+    build_dashboard(out_dir, summary_path, plot_entries, prof_entries, raw_plot_entries)
     print(f"EDA outputs written to {out_dir}")
 
 
@@ -68,8 +76,13 @@ def main() -> None:
     parser.add_argument("--val", required=True, help="Path to val CSV/Parquet")
     parser.add_argument("--test", required=True, help="Path to test CSV/Parquet")
     parser.add_argument("--out", default="reports/eda", help="Output directory")
+    parser.add_argument(
+        "--raw-plots",
+        default=None,
+        help="Optional directory containing raw plot HTML files to include in dashboard (e.g., analysis/raw_plots)",
+    )
     args = parser.parse_args()
-    run(Path(args.train), Path(args.val), Path(args.test), Path(args.out))
+    run(Path(args.train), Path(args.val), Path(args.test), Path(args.out), raw_plots_dir=Path(args.raw_plots) if args.raw_plots else None)
 
 
 if __name__ == "__main__":
