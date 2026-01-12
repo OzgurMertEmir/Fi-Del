@@ -73,6 +73,121 @@ Two simple baselines are provided that work directly off the parsed CSVs:
 
 Both use 1-second bucketing of `data/processed/strategy_updates/` and `data/processed/trade_fills/`, then train a logistic regression with a time-based validation split. Adjust `--symbol`, `--bucket`, `--horizon`, or `--val-fraction` as needed.
 
+## Binance Public Data Pipeline
+
+This project includes a complete pipeline for downloading, processing, and analyzing historical trade data from [Binance Public Data](https://github.com/binance/binance-public-data/).
+
+### Quick Start
+
+```bash
+# 1. Download historical trades (e.g., one week of BTCUSDT)
+PYTHONPATH=src python -m myproj.binance_data.cli \
+    --symbols BTCUSDT \
+    --start 2024-12-01 \
+    --end 2024-12-07 \
+    --data-type trades
+
+# 2. Generate EDA dashboard with visualizations
+PYTHONPATH=src python -m eda.run_binance_eda \
+    --symbol BTCUSDT \
+    --start 2024-12-01 \
+    --end 2024-12-07 \
+    --out reports/binance_eda
+
+# 3. View the dashboard
+cd reports/binance_eda && python -m http.server 8080
+# Open http://localhost:8080 in your browser
+```
+
+### Available Data
+
+Binance provides historical data from **August 17, 2017** to present:
+
+| Data Type | Description |
+|-----------|-------------|
+| `trades` | Individual trades with price, quantity, buyer/seller |
+| `aggTrades` | Aggregated trades (smaller files) |
+| `klines` | OHLCV candles (1m, 5m, 1h, 1d, etc.) |
+
+### Order Flow Features
+
+The pipeline computes 60+ features from raw trades:
+
+**Basic Features:**
+- OHLCV (open, high, low, close, volume)
+- Buy/sell volume split, trade counts
+- Volume imbalance, trade imbalance
+- VWAP, microprice, log returns
+
+**Advanced Microstructure Features:**
+- `toxicity` - VPIN-inspired order flow toxicity
+- `kyle_lambda` - Price impact proxy (Kyle's lambda)
+- `momentum` - Cumulative returns over window
+- `ret_autocorr` - Return serial correlation
+- `intensity_momentum` - Trade arrival acceleration
+
+### Python API
+
+```python
+from myproj.binance_data import (
+    build_binance_ml_dataset,
+    run_binance_baseline,
+    get_feature_importance,
+)
+
+# Build ML-ready dataset
+dataset = build_binance_ml_dataset(
+    symbol="BTCUSDT",
+    start_date="2024-12-01",
+    end_date="2024-12-07",
+    interval="1s",           # 1-second bars
+    label_horizon=30,        # Predict 30 bars ahead
+    include_advanced_features=True,
+)
+
+# Access the data
+print(f"Features: {len(dataset.feature_cols)}")
+print(f"Train: {len(dataset.X_train)}, Val: {len(dataset.X_val)}")
+
+# Quick baseline evaluation
+metrics, dataset = run_binance_baseline(
+    symbol="BTCUSDT",
+    start_date="2024-12-01",
+    end_date="2024-12-07",
+)
+print(f"Accuracy: {metrics['accuracy']:.2%}")
+```
+
+### Dashboard Visualizations
+
+The EDA dashboard (`reports/binance_eda/`) includes:
+
+- **OHLCV Candlestick** - Interactive price chart with volume
+- **Full History** - 7+ years of daily data (if downloaded)
+- **Order Flow Imbalance** - Buy/sell pressure over time
+- **Toxicity Timeseries** - Order flow toxicity patterns
+- **Kyle's Lambda** - Price impact signals
+- **Feature Importance** - Top predictive features
+- **Label Distribution** - Up/Down/Neutral class balance
+
+### Project Structure
+
+```
+src/myproj/binance_data/
+├── config.py        # URL generation, download configuration
+├── schemas.py       # Column definitions for all data types
+├── downloader.py    # Download manager with retries & checksums
+├── parsers.py       # ZIP/CSV parsing, timestamp handling
+├── aggregators.py   # Feature engineering (60+ features)
+├── pipeline.py      # High-level orchestration
+├── ml_integration.py # ML training utilities
+└── cli.py           # Command-line interface
+
+src/eda/
+├── binance_plots.py    # Order flow visualizations
+└── run_binance_eda.py  # Dashboard generator
+```
+
 ## Automated checks
 
 This project ships with a `.pre‑commit‑config.yaml` file. [pre‑commit](https://pre-commit.com/) hooks run automatically when you try to commit code. To enable the hooks run:
@@ -81,4 +196,3 @@ This project ships with a `.pre‑commit‑config.yaml` file. [pre‑commit](htt
 pip install pre-commit gitleaks
 pre-commit install
 ```
-

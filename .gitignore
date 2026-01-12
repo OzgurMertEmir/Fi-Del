@@ -38,3 +38,4 @@ Thumbs.db
 
 # Pre‑commit working directory
 .mypy_cache/
+reports/
