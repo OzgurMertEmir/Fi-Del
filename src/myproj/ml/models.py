@@ -18,7 +18,7 @@ def train_price_move_model(X_train: np.ndarray, y_train: np.ndarray) -> Logistic
         LogisticRegression(
             max_iter=1000,
             multi_class="auto",
-            n_jobs=4,
+            n_jobs=1,  # Single-threaded to avoid memory duplication from multiprocessing
             class_weight="balanced",
         ),
     )
@@ -32,7 +32,7 @@ def train_execution_model(X_train: np.ndarray, y_train: np.ndarray) -> LogisticR
         StandardScaler(with_mean=False),
         LogisticRegression(
             max_iter=1000,
-            n_jobs=4,
+            n_jobs=1,  # Single-threaded to avoid memory duplication from multiprocessing
             class_weight="balanced",
         ),
     )

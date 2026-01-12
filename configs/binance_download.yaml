@@ -1,0 +1,48 @@
+# Binance Public Data Download Configuration
+# ============================================
+# This configuration file defines what data to download from Binance's
+# public data repository (https://data.binance.vision/)
+
+# Trading pairs to download
+# Use the exact symbol names from Binance (e.g., BTCUSDT, ETHUSDT)
+symbols:
+  - BTCUSDT
+  - ETHUSDT
+  - BNBUSDT
+  - SOLUSDT
+  - XRPUSDT
+
+# Type of data to download
+# Options: trades, aggTrades, klines
+data_type: trades
+
+# Market type
+# Options: spot, um (USD-M futures), cm (COIN-M futures)
+market_type: spot
+
+# Date range for download
+# Format: YYYY-MM-DD
+start_date: "2024-12-01"
+end_date: "2024-12-31"
+
+# File period: daily or monthly
+# - daily: One file per day (smaller, more granular)
+# - monthly: One file per month (fewer files, larger)
+period: daily
+
+# Kline interval (only required if data_type is "klines")
+# Options: 1s, 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1mo
+# interval: 1m
+
+# Output directory for downloaded files
+output_dir: data/binance
+
+# Verify SHA256 checksums after download
+verify_checksum: true
+
+# Skip files that already exist locally
+skip_existing: true
+
+# Retry settings for failed downloads
+max_retries: 3
+retry_delay: 1.0
