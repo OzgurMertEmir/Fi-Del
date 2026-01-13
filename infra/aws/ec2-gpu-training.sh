@@ -175,9 +175,11 @@ fi
 echo "Security Group: $SG_ID"
 
 # Build training args
-TRAINING_ARGS="--symbol $SYMBOL --model-type $MODEL_TYPE"
+TRAINING_ARGS="--symbols $SYMBOL --model $MODEL_TYPE --upload-s3"
 if [ -n "$DATE_RANGE" ]; then
-    TRAINING_ARGS="$TRAINING_ARGS --date-range $DATE_RANGE"
+    START_DATE=$(echo "$DATE_RANGE" | cut -d: -f1)
+    END_DATE=$(echo "$DATE_RANGE" | cut -d: -f2)
+    TRAINING_ARGS="$TRAINING_ARGS --start-date $START_DATE --end-date $END_DATE"
 else
     TRAINING_ARGS="$TRAINING_ARGS --days $DAYS"
 fi
@@ -196,35 +198,60 @@ echo "Starting training setup at $(date)"
 # Install dependencies
 yum update -y
 pip3 install --upgrade pip
-pip3 install boto3 polars lightgbm scikit-learn joblib
+pip3 install boto3 pandas numpy pyarrow scikit-learn joblib
+pip3 install xgboost lightgbm torch --extra-index-url https://download.pytorch.org/whl/cu118
 
-# Create app directory
-mkdir -p /opt/fidel
+# Clone project from S3 (training scripts only)
+mkdir -p /opt/fidel/src/training
+mkdir -p /opt/fidel/scripts
 cd /opt/fidel
 
-# Download training script
-cat > training_job.py << 'TRAINING_SCRIPT'
 USERDATA_START
 )
 
-# Append the training script
-USER_DATA="${USER_DATA}
-$(cat "${PROJECT_ROOT}/src/deployment/training_job.py")
-TRAINING_SCRIPT"
+# Get all training module files
+TRAINING_FILES=""
+for file in "${PROJECT_ROOT}/src/training/"*.py "${PROJECT_ROOT}/src/training/models/"*.py; do
+    if [ -f "$file" ]; then
+        rel_path="${file#$PROJECT_ROOT/}"
+        TRAINING_FILES="${TRAINING_FILES}
+# File: ${rel_path}
+cat > /opt/fidel/${rel_path} << 'PYEOF'
+$(cat "$file")
+PYEOF
+"
+    fi
+done
 
-# Continue user data
+# Create training script inline
 USER_DATA="${USER_DATA}
+
+# Create training module structure
+mkdir -p /opt/fidel/src/training/models
+
+${TRAINING_FILES}
+
+# Create CLI script
+cat > /opt/fidel/scripts/run_training.py << 'CLIEOF'
+$(cat "${PROJECT_ROOT}/scripts/run_training.py")
+CLIEOF
 
 # Set environment variables
 export FIDEL_PROCESSED_BUCKET='${FIDEL_PROCESSED_BUCKET}'
 export FIDEL_MODELS_BUCKET='${FIDEL_MODELS_BUCKET}'
 export AWS_REGION='${REGION}'
+export PYTHONPATH='/opt/fidel/src'
 
 # Run training
 echo 'Starting training job at \$(date)'
-python3 /opt/fidel/training_job.py ${TRAINING_ARGS}
+cd /opt/fidel
+python3 scripts/run_training.py ${TRAINING_ARGS}
 
 echo 'Training complete at \$(date)'
+
+# Auto-terminate instance on completion
+INSTANCE_ID=\$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+aws ec2 terminate-instances --instance-ids \$INSTANCE_ID --region ${REGION}
 "
 
 # Get current spot price
