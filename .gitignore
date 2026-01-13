@@ -39,3 +39,12 @@ Thumbs.db
 # Pre‑commit working directory
 .mypy_cache/
 reports/
+
+# Java Binance data streamer (separate component)
+binance-data-streamer/
+
+# Temporary files
+temp.txt
+
+# AWS infrastructure state
+infra/aws/bucket-names.env

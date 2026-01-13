@@ -1,0 +1,136 @@
+{
+  "Version": "2012-10-17",
+  "Description": "IAM policies for FiDel trading data pipeline",
+
+  "LambdaExecutionPolicy": {
+    "PolicyName": "FiDelLambdaPolicy",
+    "PolicyDocument": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "S3ReadRawData",
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetObject",
+            "s3:ListBucket"
+          ],
+          "Resource": [
+            "arn:aws:s3:::fidel-raw-data-*",
+            "arn:aws:s3:::fidel-raw-data-*/*"
+          ]
+        },
+        {
+          "Sid": "S3WriteProcessedData",
+          "Effect": "Allow",
+          "Action": [
+            "s3:PutObject",
+            "s3:GetObject",
+            "s3:ListBucket"
+          ],
+          "Resource": [
+            "arn:aws:s3:::fidel-processed-data-*",
+            "arn:aws:s3:::fidel-processed-data-*/*"
+          ]
+        },
+        {
+          "Sid": "CloudWatchLogs",
+          "Effect": "Allow",
+          "Action": [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents"
+          ],
+          "Resource": "arn:aws:logs:*:*:log-group:/aws/lambda/fidel-*"
+        }
+      ]
+    }
+  },
+
+  "EC2InstancePolicy": {
+    "PolicyName": "FiDelEC2Policy",
+    "PolicyDocument": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "S3FullAccess",
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:ListBucket",
+            "s3:DeleteObject"
+          ],
+          "Resource": [
+            "arn:aws:s3:::fidel-raw-data-*",
+            "arn:aws:s3:::fidel-raw-data-*/*",
+            "arn:aws:s3:::fidel-processed-data-*",
+            "arn:aws:s3:::fidel-processed-data-*/*",
+            "arn:aws:s3:::fidel-models-*",
+            "arn:aws:s3:::fidel-models-*/*",
+            "arn:aws:s3:::fidel-logs-*",
+            "arn:aws:s3:::fidel-logs-*/*"
+          ]
+        },
+        {
+          "Sid": "CloudWatchLogs",
+          "Effect": "Allow",
+          "Action": [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents",
+            "logs:DescribeLogStreams"
+          ],
+          "Resource": "arn:aws:logs:*:*:log-group:/fidel/*"
+        },
+        {
+          "Sid": "CloudWatchMetrics",
+          "Effect": "Allow",
+          "Action": [
+            "cloudwatch:PutMetricData"
+          ],
+          "Resource": "*",
+          "Condition": {
+            "StringEquals": {
+              "cloudwatch:namespace": "FiDel"
+            }
+          }
+        },
+        {
+          "Sid": "EC2SpotManagement",
+          "Effect": "Allow",
+          "Action": [
+            "ec2:DescribeSpotInstanceRequests",
+            "ec2:DescribeInstances"
+          ],
+          "Resource": "*"
+        }
+      ]
+    }
+  },
+
+  "LambdaTrustPolicy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "lambda.amazonaws.com"
+        },
+        "Action": "sts:AssumeRole"
+      }
+    ]
+  },
+
+  "EC2TrustPolicy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "ec2.amazonaws.com"
+        },
+        "Action": "sts:AssumeRole"
+      }
+    ]
+  }
+}

@@ -3,14 +3,14 @@
 """
 process_logs.py
 
-Convert raw log files into clean machine‑learning ready datasets using the
-project's built‑in log parser.
+Convert raw log files into clean machine-learning ready datasets using the
+project's built-in log parser.
 
-For each file in `data/raw/`, this script parses the file and writes two CSVs
+For each .log file in `data/raw/`, this script parses and writes two CSVs
 into `data/processed/`:
 
-- `strategy_updates/<file_stem>.csv`
-- `trade_fills/<file_stem>.csv`
+- `signals/<file_stem>.csv` - Model signals with entry decisions
+- `trade_fills/<file_stem>.csv` - Binance order fills
 
 Files that already exist in the output directory are skipped unless `--force`
 is specified.
@@ -19,15 +19,8 @@ Example:
 
 ```bash
 python scripts/process_logs.py
+python scripts/process_logs.py --force  # overwrite existing
 ```
-
-This script assumes that your log parser can be executed like:
-
-```
-python logparser.py --input path/to/raw.log --output path/to/out.csv
-```
-
-Adjust the `run_parser()` function if the interface differs.
 """
 
 import argparse
@@ -68,15 +61,15 @@ def main():
 
     for raw_file in raw_files:
         base_name = raw_file.stem
-        strategy_path = out_dir / "strategy_updates" / f"{base_name}.csv"
+        signals_path = out_dir / "signals" / f"{base_name}.csv"
         fills_path = out_dir / "trade_fills" / f"{base_name}.csv"
 
-        if strategy_path.exists() and fills_path.exists() and not args.force:
+        if signals_path.exists() and fills_path.exists() and not args.force:
             print(f"Skipping {base_name} (already parsed, use --force to overwrite)")
             continue
 
-        strategy_out, fills_out = parse_log_file(raw_file, output_dir=out_dir, base_name=base_name)
-        print(f"Processed {raw_file.name} -> {strategy_out.name}, {fills_out.name}")
+        signals_out, fills_out = parse_log_file(raw_file, output_dir=out_dir, base_name=base_name)
+        print(f"Processed {raw_file.name} -> {signals_out.name}, {fills_out.name}")
 
 
 if __name__ == "__main__":

@@ -1,31 +1,52 @@
-# Crypto Order Book Project
+# FiDel - Crypto Trading Data Pipeline
 
-This repository provides a clean and extensible starting point for training machine‑learning models on high frequency **level‑1 crypto order book** data. The goal is to separate **code** (which lives in Git) from **data** (which lives on Google Drive) so that your repository stays small and collaborators never accidentally commit huge files or secrets.
+A production-ready pipeline for streaming, processing, and training ML models on high-frequency crypto order book data. The project supports both local development and AWS cloud deployment.
+
+## Features
+
+- **Real-time Data Streaming**: Live order book data from Binance via WebSocket
+- **AWS Cloud Pipeline**: Serverless feature engineering with Lambda, S3 storage
+- **ML-Ready Features**: 36+ engineered features including rolling statistics, order flow, spreads
+- **Historical Data**: Integration with Binance Public Data for backtesting
+- **EDA Dashboard**: Interactive visualizations for data exploration
 
 ## Project layout
 
 ```
-my‑crypto‑model/
-├── README.md            # project overview and instructions
-├── requirements.txt     # Python dependencies
-├── .gitignore           # patterns of files that should never be committed
-├── .pre‑commit‑config.yaml  # automated linters and checks
-├── .env.example         # template for local environment variables
-├── scripts/             # entry points for downloading, preprocessing and training
-│   ├── download_data.py
-│   └── process_logs.py
-├── src/                 # importable Python package for your code
-│   └── myproj/
-│       ├── __init__.py
-│       ├── config.py    # central location for paths and env vars
-│       └── data/
-│           ├── __init__.py
-│           └── io.py    # helper functions for loading data
-├── data/                # working folder for your raw/interim/processed data (ignored by Git)
+FiDel/
+├── README.md                 # Project overview and instructions
+├── requirements.txt          # Python dependencies
+├── .gitignore                # Files excluded from Git
+├── .pre‑commit‑config.yaml   # Automated linters and checks
+│
+├── scripts/                  # Entry points for data processing
+│   ├── download_data.py      # Download from Google Drive
+│   ├── process_logs.py       # Parse raw trading logs
+│   └── train_*.py            # ML training scripts
+│
+├── src/                      # Python packages
+│   ├── myproj/
+│   │   ├── binance_data/     # Binance public data pipeline
+│   │   ├── unified_data/     # Feature engineering library
+│   │   └── data/             # Data loading utilities
+│   ├── eda/                  # Exploratory data analysis
+│   └── deployment/           # AWS Lambda functions
+│       └── lambda_processor.py
+│
+├── infra/                    # Infrastructure as code
+│   └── aws/
+│       ├── setup-iam.sh      # IAM roles and policies
+│       ├── s3-setup.sh       # S3 bucket configuration
+│       ├── lambda-deploy.sh  # Lambda deployment
+│       ├── ec2-java-streamer.sh  # EC2 streamer setup
+│       ├── cloudwatch-setup.sh   # Monitoring setup
+│       └── monitor-pipeline.sh   # Pipeline monitoring CLI
+│
+├── data/                     # Local data (ignored by Git)
 │   ├── raw/
-│   ├── processed/
-│   └── logs/
-└── artifacts/           # models, metrics and other outputs (ignored by Git)
+│   └── processed/
+│
+└── artifacts/                # Models and outputs (ignored by Git)
 ```
 
 ## Installing dependencies
@@ -187,6 +208,69 @@ src/eda/
 ├── binance_plots.py    # Order flow visualizations
 └── run_binance_eda.py  # Dashboard generator
 ```
+
+## AWS Cloud Pipeline
+
+Deploy the full data pipeline to AWS for real-time streaming, feature engineering, and ML training.
+
+### Architecture
+
+```
+[Binance WebSocket] --> [EC2 Spot Streamer] --> [S3 Raw Data]
+                                                      |
+                                                      v
+                                            [Lambda: Feature Engineering]
+                                                      |
+                                                      v
+                                            [S3 Processed Features]
+```
+
+### Components
+
+| Component | Description | Cost |
+|-----------|-------------|------|
+| **EC2 Spot Instance** | Java streamer collecting order book data | ~$5/month |
+| **S3 Buckets** | Raw data, processed features, models | ~$5/month |
+| **Lambda Function** | Serverless feature engineering (pandas + pyarrow) | Free tier |
+| **CloudWatch** | Monitoring, alerts, dashboards | Free tier |
+
+### Deployment
+
+```bash
+# 1. Configure AWS CLI
+aws configure
+
+# 2. Run deployment scripts in order
+cd infra/aws
+./setup-iam.sh          # Create IAM roles and policies
+./s3-setup.sh           # Create S3 buckets with lifecycle rules
+./lambda-deploy.sh      # Deploy feature engineering Lambda
+./cloudwatch-setup.sh   # Set up monitoring dashboard
+./ec2-java-streamer.sh  # Launch data streamer on EC2 Spot
+
+# 3. Monitor the pipeline
+./monitor-pipeline.sh           # Full status check
+./monitor-pipeline.sh --watch   # Continuous monitoring
+./monitor-pipeline.sh --logs    # View streamer logs
+./monitor-pipeline.sh --s3      # Check recent data files
+```
+
+### Data Flow
+
+1. **Java Streamer** connects to Binance WebSocket and collects order book snapshots
+2. **S3 Sync** uploads `.store` files to S3 every 5 minutes
+3. **Lambda Trigger** automatically processes new files
+4. **Feature Engineering** computes 36 features:
+   - Mid price, spread, bid/ask quantities
+   - Returns, log prices, dollar volume
+   - Rolling MA, STD (windows: 5, 10, 30)
+   - Lag features (1, 5, 10 periods)
+   - Order flow imbalance
+5. **Parquet Output** saved to processed bucket for ML training
+
+### Symbols Tracked
+
+- BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT
 
 ## Automated checks
 
