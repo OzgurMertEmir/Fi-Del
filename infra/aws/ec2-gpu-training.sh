@@ -148,12 +148,21 @@ fi
 
 echo "Using AMI: $AMI_ID"
 
-# Get security group
+# Get security group (try training sg first, then ingestor sg)
 SG_ID=$(aws ec2 describe-security-groups \
-    --filters "Name=group-name,Values=fidel-ingestor-sg" \
+    --filters "Name=group-name,Values=fidel-training-sg" \
     --query 'SecurityGroups[0].GroupId' \
     --output text \
     --region "$REGION" 2>/dev/null || echo "")
+
+if [ -z "$SG_ID" ] || [ "$SG_ID" = "None" ]; then
+    # Try ingestor security group
+    SG_ID=$(aws ec2 describe-security-groups \
+        --filters "Name=group-name,Values=fidel-ingestor-sg" \
+        --query 'SecurityGroups[0].GroupId' \
+        --output text \
+        --region "$REGION" 2>/dev/null || echo "")
+fi
 
 if [ -z "$SG_ID" ] || [ "$SG_ID" = "None" ]; then
     echo "Creating security group..."
@@ -187,13 +196,35 @@ fi
 echo "Training args: $TRAINING_ARGS"
 echo ""
 
-# Create user data script
-USER_DATA=$(cat << 'USERDATA_START'
+# ============================================
+# Upload training code to S3
+# ============================================
+echo "Packaging and uploading training code to S3..."
+
+TRAINING_PACKAGE="/tmp/fidel-training-code.tar.gz"
+cd "$PROJECT_ROOT"
+
+# Create tarball of training code
+tar -czf "$TRAINING_PACKAGE" \
+    src/training/ \
+    scripts/run_training.py
+
+# Upload to S3
+aws s3 cp "$TRAINING_PACKAGE" "s3://${FIDEL_MODELS_BUCKET}/training-code/fidel-training-code.tar.gz" \
+    --region "$REGION"
+
+rm -f "$TRAINING_PACKAGE"
+echo "Training code uploaded to s3://${FIDEL_MODELS_BUCKET}/training-code/"
+
+# ============================================
+# Create user data script (downloads code from S3)
+# ============================================
+USER_DATA=$(cat << EOF
 #!/bin/bash
 set -e
 
 exec > >(tee /var/log/training-setup.log) 2>&1
-echo "Starting training setup at $(date)"
+echo "Starting training setup at \$(date)"
 
 # Install dependencies
 yum update -y
@@ -201,40 +232,14 @@ pip3 install --upgrade pip
 pip3 install boto3 pandas numpy pyarrow scikit-learn joblib
 pip3 install xgboost lightgbm torch --extra-index-url https://download.pytorch.org/whl/cu118
 
-# Clone project from S3 (training scripts only)
-mkdir -p /opt/fidel/src/training
-mkdir -p /opt/fidel/scripts
+# Download training code from S3
+mkdir -p /opt/fidel
 cd /opt/fidel
 
-USERDATA_START
-)
-
-# Get all training module files
-TRAINING_FILES=""
-for file in "${PROJECT_ROOT}/src/training/"*.py "${PROJECT_ROOT}/src/training/models/"*.py; do
-    if [ -f "$file" ]; then
-        rel_path="${file#$PROJECT_ROOT/}"
-        TRAINING_FILES="${TRAINING_FILES}
-# File: ${rel_path}
-cat > /opt/fidel/${rel_path} << 'PYEOF'
-$(cat "$file")
-PYEOF
-"
-    fi
-done
-
-# Create training script inline
-USER_DATA="${USER_DATA}
-
-# Create training module structure
-mkdir -p /opt/fidel/src/training/models
-
-${TRAINING_FILES}
-
-# Create CLI script
-cat > /opt/fidel/scripts/run_training.py << 'CLIEOF'
-$(cat "${PROJECT_ROOT}/scripts/run_training.py")
-CLIEOF
+echo "Downloading training code from S3..."
+aws s3 cp s3://${FIDEL_MODELS_BUCKET}/training-code/fidel-training-code.tar.gz /tmp/code.tar.gz --region ${REGION}
+tar -xzf /tmp/code.tar.gz
+rm /tmp/code.tar.gz
 
 # Set environment variables
 export FIDEL_PROCESSED_BUCKET='${FIDEL_PROCESSED_BUCKET}'
@@ -243,24 +248,26 @@ export AWS_REGION='${REGION}'
 export PYTHONPATH='/opt/fidel/src'
 
 # Run training
-echo 'Starting training job at \$(date)'
+echo "Starting training job at \$(date)"
 cd /opt/fidel
 python3 scripts/run_training.py ${TRAINING_ARGS}
 
-echo 'Training complete at \$(date)'
+echo "Training complete at \$(date)"
 
 # Auto-terminate instance on completion
 INSTANCE_ID=\$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
 aws ec2 terminate-instances --instance-ids \$INSTANCE_ID --region ${REGION}
-"
+EOF
+)
 
-# Get current spot price
+# Get current spot price (take first price only)
 SPOT_PRICE=$(aws ec2 describe-spot-price-history \
     --instance-types "$INSTANCE_TYPE" \
     --product-descriptions "Linux/UNIX" \
+    --max-items 1 \
     --query 'SpotPriceHistory[0].SpotPrice' \
     --output text \
-    --region "$REGION")
+    --region "$REGION" | head -1)
 
 echo "Current spot price for $INSTANCE_TYPE: \$$SPOT_PRICE/hr"
 echo ""

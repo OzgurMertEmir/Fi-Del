@@ -328,81 +328,26 @@ echo 'FiDel Binance Streamer started at \$(date)' | logger
 echo 'Setup complete!'
 "
 
-# Request Spot instance
-echo "Requesting Spot instance..."
+# Launch On-Demand instance (more reliable than Spot for continuous streaming)
+echo "Launching On-Demand instance..."
 
-LAUNCH_SPEC=$(cat << EOF
-{
-    "ImageId": "$AMI_ID",
-    "InstanceType": "$INSTANCE_TYPE",
-    "IamInstanceProfile": {
-        "Name": "fidel-ec2-profile"
-    },
-    "SecurityGroupIds": ["$SG_ID"],
-    "UserData": "$(echo "$USER_DATA" | base64 | tr -d '\n')",
-    "BlockDeviceMappings": [
-        {
-            "DeviceName": "/dev/xvda",
-            "Ebs": {
-                "VolumeSize": 30,
-                "VolumeType": "gp3",
-                "DeleteOnTermination": true
-            }
-        }
-    ]
-}
-EOF
-)
-
-# Get current spot price
-SPOT_PRICE=$(aws ec2 describe-spot-price-history \
-    --instance-types "$INSTANCE_TYPE" \
-    --product-descriptions "Linux/UNIX" \
-    --query 'SpotPriceHistory[0].SpotPrice' \
-    --output text \
-    --region "$REGION")
-
-echo "Current spot price for $INSTANCE_TYPE: \$$SPOT_PRICE/hr"
-
-# Add 10% buffer to spot price
-SPOT_BID=$(echo "$SPOT_PRICE * 1.1" | bc -l | xargs printf "%.4f")
-echo "Bidding: \$$SPOT_BID/hr"
+# On-demand pricing for t3.small is ~$0.02/hr (~$15/month)
+echo "Instance type: $INSTANCE_TYPE (~\$0.02/hr, ~\$15/month)"
 echo ""
 
-# Request Spot instance
-SPOT_REQUEST=$(aws ec2 request-spot-instances \
-    --spot-price "$SPOT_BID" \
-    --instance-count 1 \
-    --type "persistent" \
-    --launch-specification "$LAUNCH_SPEC" \
-    --query 'SpotInstanceRequests[0].SpotInstanceRequestId' \
-    --output text \
-    --region "$REGION")
-
-echo "Spot request: $SPOT_REQUEST"
-
-# Wait for spot request to be fulfilled
-echo "Waiting for Spot instance..."
-aws ec2 wait spot-instance-request-fulfilled \
-    --spot-instance-request-ids "$SPOT_REQUEST" \
-    --region "$REGION"
-
-# Get instance ID
-INSTANCE_ID=$(aws ec2 describe-spot-instance-requests \
-    --spot-instance-request-ids "$SPOT_REQUEST" \
-    --query 'SpotInstanceRequests[0].InstanceId' \
+INSTANCE_ID=$(aws ec2 run-instances \
+    --image-id "$AMI_ID" \
+    --instance-type "$INSTANCE_TYPE" \
+    --iam-instance-profile "Name=fidel-ec2-profile" \
+    --security-group-ids "$SG_ID" \
+    --user-data "$(echo "$USER_DATA" | base64)" \
+    --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":30,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=fidel-java-streamer},{Key=Project,Value=FiDel},{Key=Component,Value=BinanceStreamer}]" \
+    --query 'Instances[0].InstanceId' \
     --output text \
     --region "$REGION")
 
 echo "Instance ID: $INSTANCE_ID"
-
-# Tag the instance
-aws ec2 create-tags \
-    --resources "$INSTANCE_ID" \
-    --tags "Key=Name,Value=fidel-java-streamer" \
-           "Key=Project,Value=FiDel" \
-           "Key=Component,Value=BinanceStreamer" \
-    --region "$REGION"
 
 # Wait for instance to be running
 echo "Waiting for instance to start..."
@@ -423,10 +368,12 @@ echo ""
 echo "Instance ID: $INSTANCE_ID"
 echo "Instance Type: $INSTANCE_TYPE"
 echo "Public IP: $PUBLIC_IP"
-echo "Spot Price: \$$SPOT_PRICE/hr (~\$$(echo "$SPOT_PRICE * 720" | bc -l | xargs printf "%.0f")/month)"
+echo "Cost: ~\$0.02/hr (~\$15/month) - On-Demand (always available)"
 echo ""
 echo "The streamer will start automatically after setup (~2-3 min)."
 echo "Data will be synced to S3 every 5 minutes."
+echo ""
+echo "NOTE: This is an On-Demand instance - it will run continuously until stopped."
 echo ""
 echo "Streaming symbols: BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT, DOGEUSDT"
 echo ""

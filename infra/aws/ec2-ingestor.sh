@@ -72,11 +72,11 @@ fi
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
-# Function to get the latest Amazon Linux 2 AMI
+# Function to get the latest Amazon Linux 2023 AMI (has Python 3.9+)
 get_latest_ami() {
     aws ec2 describe-images \
         --owners amazon \
-        --filters "Name=name,Values=amzn2-ami-hvm-*-x86_64-gp2" \
+        --filters "Name=name,Values=al2023-ami-*-x86_64" \
                   "Name=state,Values=available" \
         --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
         --output text \
@@ -109,7 +109,7 @@ get_security_group() {
             --protocol tcp \
             --port 22 \
             --cidr 0.0.0.0/0 \
-            --region "$REGION"
+            --region "$REGION" >/dev/null
 
         echo "Created security group: $sg_id" >&2
     fi
@@ -172,11 +172,13 @@ USER_DATA=$(cat << EOF
 #!/bin/bash
 set -e
 
-# Update system
-yum update -y
+exec > >(tee /var/log/ingestor-setup.log) 2>&1
+echo "Starting ingestor setup at \$(date)"
 
-# Install Python 3.9 and pip
-amazon-linux-extras install python3.8 -y
+# Update system (Amazon Linux 2023 uses dnf)
+dnf update -y
+
+# Python 3.9 is already installed on AL2023
 pip3 install --upgrade pip
 
 # Install dependencies
