@@ -228,9 +228,16 @@ def train_model(
     logger.info(f"Training {model_type} model...")
     logger.info(f"Label type: {label_type}, Horizon: {horizon}")
 
-    # Prepare features
-    feature_cols = [c for c in df.columns if c not in ["timestamp", "symbol", "date", "hour"]]
-    X = df[feature_cols].values
+    # Prepare features - only numeric columns
+    exclude_cols = ["timestamp", "symbol", "date", "hour"]
+    feature_cols = [c for c in df.columns if c not in exclude_cols]
+
+    # Filter to numeric columns only
+    numeric_cols = df[feature_cols].select_dtypes(include=[np.number]).columns.tolist()
+    logger.info(f"Using {len(numeric_cols)} numeric features out of {len(feature_cols)} total columns")
+    feature_cols = numeric_cols
+
+    X = df[feature_cols].values.astype(np.float32)
 
     # Create labels
     if "mid_price" in df.columns:
@@ -238,19 +245,21 @@ def train_model(
     elif "price" in df.columns:
         price_col = "price"
     else:
+        # Use first numeric column as price proxy
         price_col = feature_cols[0]
 
-    prices = df[price_col].values
+    prices = df[price_col].values.astype(np.float32)
 
     if label_type == "direction":
         # Binary classification: up (1) or down (0)
         future_returns = np.roll(prices, -horizon) / prices - 1
-        y = (future_returns > 0).astype(int)
+        y = (future_returns > 0).astype(np.int64)
     elif label_type == "regression":
         # Predict actual return
-        y = np.roll(prices, -horizon) / prices - 1
+        y = (np.roll(prices, -horizon) / prices - 1).astype(np.float32)
     else:
-        y = (future_returns > 0).astype(int)
+        future_returns = np.roll(prices, -horizon) / prices - 1
+        y = (future_returns > 0).astype(np.int64)
 
     # Remove last horizon rows (no valid labels)
     X = X[:-horizon]
